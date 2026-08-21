@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ISS Station Builder</title>
+  <title>ISS Station Builder & Map</title>
   <style>
     * {
       box-sizing: border-box;
@@ -16,17 +16,17 @@
       padding: 20px;
     }
     .container {
-      max-width: 900px;
+      max-width: 1100px;
       margin: 0 auto;
     }
     h1 {
       text-align: center;
       color: #58a6ff;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     .dashboard {
       background: #161b22;
-      padding: 20px;
+      padding: 15px 25px;
       border-radius: 8px;
       border: 1px solid #30363d;
       margin-bottom: 20px;
@@ -38,154 +38,236 @@
     .stat-val {
       color: #3fb950;
     }
-    .grid {
+    .layout {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 15px;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
     }
-    .card {
-      background: #21262d;
+    @media (max-width: 800px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    .panel {
+      background: #161b22;
       border: 1px solid #30363d;
       border-radius: 8px;
       padding: 15px;
-      text-align: center;
+    }
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      color: #79c0ff;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 8px;
+    }
+    .catalog-list {
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 10px;
+      max-height: 520px;
+      overflow-y: auto;
     }
-    .card h3 {
-      margin: 0 0 10px 0;
-      color: #79c0ff;
-    }
-    .card p {
-      margin: 4px 0;
-      font-size: 0.9rem;
-    }
-    .btn {
-      background-color: #238636;
-      color: white;
-      border: none;
-      padding: 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-      margin-top: 10px;
-
-    }
-    .btn:disabled {
-      background-color: #343942;
-      cursor: not-allowed;
-      color: #8b949e;
-    }
-    .btn:hover:not(:disabled) {
-      background-color: #2ea043;
-    }
-    .inventory {
-      margin-top: 25px;
-      background: #161b22;
-      padding: 20px;
-      border-radius: 8px;
+    .catalog-item {
+      background: #21262d;
       border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .inventory h2 {
-      margin-top: 0;
+    .catalog-item:hover {
+      border-color: #58a6ff;
+    }
+    .catalog-item.selected {
+      border-color: #238636;
+      background: #1c2128;
+      box-shadow: 0 0 8px rgba(46, 160, 67, 0.4);
+    }
+    .catalog-item h3 {
+      margin: 0 0 5px 0;
+      font-size: 1rem;
       color: #f0883e;
+    }
+    .catalog-item p {
+      margin: 2px 0;
+      font-size: 0.85rem;
+    }
+    .map-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      background: #090d11;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px dashed #30363d;
+      min-height: 480px;
+    }
+    .tile {
+      aspect-ratio: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.75rem;
+      padding: 4px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.2s;
+    }
+    .tile.empty:hover {
+      background: #21262d;
+      border-color: #58a6ff;
+    }
+    .tile.occupied {
+      background: #21262d;
+      cursor: default;
+      border-color: #3fb950;
+    }
+    .tile .icon {
+      font-size: 1.5rem;
+      margin-bottom: 2px;
+    }
+    .tile-name {
+      font-weight: bold;
+      color: #c9d1d9;
+      line-height: 1.1;
+    }
+    .instruction {
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <h1>🚀 International Space Station Builder</h1>
+    <h1>🚀 ISS Station Builder & Orbit Map</h1>
     
     <div class="dashboard">
       <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
-      <div>⚡ Income: +<span id="income" class="stat-val">0</span> / sec</div>
+      <div>⚡ Passive Income: +<span id="income" class="stat-val">0</span> / sec</div>
     </div>
 
-    <div class="grid" id="shop"></div>
+    <div class="layout">
+      <div class="panel">
+        <h2>🛠️ Station Modules</h2>
+        <p class="instruction">1. Click a module below to select it.</p>
+        <div class="catalog-list" id="catalog"></div>
+      </div>
 
-    <div class="inventory">
-      <h2>🛸 Active Station Modules</h2>
-      <p id="built-list">No modules built yet.</p>
+      <div class="panel">
+        <h2>🛸 Orbital Map Grid</h2>
+        <p class="instruction" id="status-msg">2. Click an empty grid tile (+) to place the selected module.</p>
+        <div class="map-grid" id="map"></div>
+      </div>
     </div>
   </div>
 
   <script>
     let orbitals = 0;
-    
+    let selectedModuleIndex = null;
+    const GRID_SIZE = 25; // 5x5 Map Grid
+
     const catalog = [
-      { name: 'Farm', cost: 0, income: 1, count: 0 },
-      { name: 'Bedroom', cost: 10, income: 3, count: 0 },
-      { name: 'Solar Panel Room', cost: 15, income: 5, count: 0 },
-      { name: 'Second Floor', cost: 20, income: 8, count: 0 },
-      { name: 'Research Lab', cost: 35, income: 15, count: 0 },
-      { name: 'Hydroponics Bay', cost: 50, income: 22, count: 0 },
-      { name: 'Observatory Deck', cost: 80, income: 38, count: 0 },
-      { name: 'Command Center', cost: 120, income: 60, count: 0 }
+      { name: 'Farm', cost: 0, income: 1, icon: '🌾' },
+      { name: 'Bedroom', cost: 10, income: 3, icon: '🛏️' },
+      { name: 'Solar Panel Room', cost: 15, income: 5, icon: '☀️' },
+      { name: 'Second Floor', cost: 20, income: 8, icon: '🏢' },
+      { name: 'Research Lab', cost: 35, income: 15, icon: '🧪' },
+      { name: 'Hydroponics Bay', cost: 50, income: 22, icon: '🌿' },
+      { name: 'Observatory Deck', cost: 80, income: 38, icon: '🔭' },
+      { name: 'Command Center', cost: 120, income: 60, icon: '🛰️' }
     ];
 
-    function renderShop() {
-      const shop = document.getElementById('shop');
-      shop.innerHTML = '';
-      
-      catalog.forEach((room, index) => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div>
-            <h3>${room.name}</h3>
-            <p>Cost: <strong>${room.cost}</strong> Orbitals</p>
-            <p>Income: <strong>+${room.income}</strong>/sec</p>
-            <p>Owned: <strong>${room.count}</strong></p>
-          </div>
-          <button class="btn" id="btn-${index}" onclick="buyRoom(${index})">Build Module</button>
+    const mapData = new Array(GRID_SIZE).fill(null);
+
+    function renderCatalog() {
+      const catalogEl = document.getElementById('catalog');
+      catalogEl.innerHTML = '';
+
+      catalog.forEach((room, idx) => {
+        const item = document.createElement('div');
+        item.className = `catalog-item ${selectedModuleIndex === idx ? 'selected' : ''}`;
+        item.onclick = () => selectModule(idx);
+        item.innerHTML = `
+          <h3>${room.icon} ${room.name}</h3>
+          <p>Cost: <strong>${room.cost}</strong> Orbitals</p>
+          <p>Income: <strong>+${room.income}</strong>/sec</p>
         `;
-        shop.appendChild(card);
+        catalogEl.appendChild(item);
       });
-      updateButtons();
     }
 
-    function buyRoom(index) {
-      const room = catalog[index];
-      if (orbitals >= room.cost) {
-        orbitals -= room.cost;
-        room.count++;
-        updateUI();
+    function selectModule(index) {
+      selectedModuleIndex = index;
+      renderCatalog();
+      const statusMsg = document.getElementById('status-msg');
+      const selected = catalog[index];
+      statusMsg.innerText = `Selected: ${selected.icon} ${selected.name} (${selected.cost} Orbitals). Click any empty (+) grid tile to build.`;
+    }
+
+    function renderMap() {
+      const mapEl = document.getElementById('map');
+      mapEl.innerHTML = '';
+
+      mapData.forEach((tile, tileIdx) => {
+        const tileEl = document.createElement('div');
+        if (tile === null) {
+          tileEl.className = 'tile empty';
+          tileEl.innerHTML = '<span style="color:#484f58; font-size: 1.2rem;">+</span>';
+          tileEl.onclick = () => buildOnTile(tileIdx);
+        } else {
+          tileEl.className = 'tile occupied';
+          tileEl.innerHTML = `
+            <div class="icon">${tile.icon}</div>
+            <div class="tile-name">${tile.name}</div>
+          `;
+        }
+        mapEl.appendChild(tileEl);
+      });
+    }
+
+    function buildOnTile(tileIdx) {
+      if (selectedModuleIndex === null) {
+        alert("Please select a module from the left menu first!");
+        return;
       }
-    }
 
-    function updateButtons() {
-      catalog.forEach((room, index) => {
-        const btn = document.getElementById(`btn-${index}`);
-        if (btn) btn.disabled = orbitals < room.cost;
-      });
+      const module = catalog[selectedModuleIndex];
+      if (orbitals < module.cost) {
+        alert(`Not enough Orbitals! You need ${module.cost - orbitals} more.`);
+        return;
+      }
+
+      orbitals -= module.cost;
+      mapData[tileIdx] = module;
+      
+      updateUI();
+      renderMap();
     }
 
     function getPassiveIncome() {
-      return catalog.reduce((total, room) => total + (room.count * room.income), 0);
+      return mapData.reduce((sum, tile) => sum + (tile ? tile.income : 0), 0);
     }
 
     function updateUI() {
       document.getElementById('orbitals').innerText = orbitals;
       document.getElementById('income').innerText = getPassiveIncome();
-      
-      const built = catalog
-        .filter(r => r.count > 0)
-        .map(r => `${r.name} (x${r.count})`)
-        .join(' • ');
-      
-      document.getElementById('built-list').innerText = built || 'No modules built yet.';
-      updateButtons();
     }
 
-    // Passive income timer (ticks every second)
     setInterval(() => {
       orbitals += getPassiveIncome();
       updateUI();
     }, 1000);
 
-    renderShop();
+    renderCatalog();
+    renderMap();
     updateUI();
   </script>
 </body>
