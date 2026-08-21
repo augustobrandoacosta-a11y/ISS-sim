@@ -3,257 +3,421 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ISS Station Builder & Map</title>
+  <title>3D ISS Space Station Builder</title>
   <style>
     * {
       box-sizing: border-box;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
     }
-    body {
-      background-color: #0d1117;
-      color: #c9d1d9;
+    body, html {
       margin: 0;
-      padding: 20px;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #050811;
+      color: #c9d1d9;
     }
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
+    #webgl-container {
+      width: 100%;
+      height: 100%;
+      display: block;
     }
-    h1 {
-      text-align: center;
-      color: #58a6ff;
-      margin-bottom: 15px;
-    }
-    .dashboard {
-      background: #161b22;
-      padding: 15px 25px;
-      border-radius: 8px;
+
+    /* HUD Overlay */
+    .hud-top {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(22, 27, 34, 0.85);
       border: 1px solid #30363d;
-      margin-bottom: 20px;
+      backdrop-filter: blur(8px);
+      padding: 10px 25px;
+      border-radius: 30px;
       display: flex;
-      justify-content: space-around;
-      font-size: 1.2rem;
+      gap: 30px;
+      font-size: 1.1rem;
       font-weight: bold;
+      z-index: 10;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
     .stat-val {
       color: #3fb950;
     }
-    .layout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 20px;
-    }
-    @media (max-width: 800px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-    }
-    .panel {
-      background: #161b22;
+
+    /* Module Selector Panel */
+    .shop-panel {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      width: 260px;
+      max-height: calc(100vh - 180px);
+      background: rgba(22, 27, 34, 0.85);
       border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 15px;
-    }
-    .panel h2 {
-      margin-top: 0;
-      font-size: 1.2rem;
-      color: #79c0ff;
-      border-bottom: 1px solid #30363d;
-      padding-bottom: 8px;
-    }
-    .catalog-list {
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      max-height: 520px;
+      gap: 8px;
       overflow-y: auto;
+      z-index: 10;
     }
-    .catalog-item {
-      background: #21262d;
+    .shop-panel h2 {
+      margin: 0 0 5px 0;
+      font-size: 1.05rem;
+      color: #58a6ff;
+    }
+    .shop-item {
+      background: rgba(33, 38, 45, 0.8);
       border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 10px;
+      border-radius: 8px;
+      padding: 8px 10px;
       cursor: pointer;
       transition: all 0.2s;
     }
-    .catalog-item:hover {
+    .shop-item:hover {
       border-color: #58a6ff;
+      background: rgba(40, 46, 54, 0.9);
     }
-    .catalog-item.selected {
+    .shop-item.active {
       border-color: #238636;
-      background: #1c2128;
-      box-shadow: 0 0 8px rgba(46, 160, 67, 0.4);
+      background: rgba(35, 134, 54, 0.25);
     }
-    .catalog-item h3 {
-      margin: 0 0 5px 0;
-      font-size: 1rem;
+    .shop-item h3 {
+      margin: 0;
+      font-size: 0.9rem;
       color: #f0883e;
     }
-    .catalog-item p {
-      margin: 2px 0;
-      font-size: 0.85rem;
-    }
-    .map-grid {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 10px;
-      background: #090d11;
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px dashed #30363d;
-      min-height: 480px;
-    }
-    .tile {
-      aspect-ratio: 1;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
+    .shop-item p {
+      margin: 2px 0 0 0;
       font-size: 0.75rem;
-      padding: 4px;
-      cursor: pointer;
-      user-select: none;
-      transition: background 0.2s;
-    }
-    .tile.empty:hover {
-      background: #21262d;
-      border-color: #58a6ff;
-    }
-    .tile.occupied {
-      background: #21262d;
-      cursor: default;
-      border-color: #3fb950;
-    }
-    .tile .icon {
-      font-size: 1.5rem;
-      margin-bottom: 2px;
-    }
-    .tile-name {
-      font-weight: bold;
-      color: #c9d1d9;
-      line-height: 1.1;
-    }
-    .instruction {
-      font-size: 0.85rem;
       color: #8b949e;
-      margin-bottom: 10px;
+    }
+
+    /* Instruction Tooltip */
+    .info-box {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(22, 27, 34, 0.85);
+      border: 1px solid #30363d;
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      padding: 10px 15px;
+      font-size: 0.85rem;
+      max-width: 220px;
+      z-index: 10;
+    }
+
+    /* Virtual Joystick Elements */
+    #joystick-base {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      width: 120px;
+      height: 120px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      touch-action: none;
+      z-index: 20;
+    }
+    #joystick-knob {
+      position: absolute;
+      top: 35px;
+      left: 35px;
+      width: 50px;
+      height: 50px;
+      background: rgba(88, 166, 255, 0.6);
+      border: 2px solid #58a6ff;
+      border-radius: 50%;
+      pointer-events: none;
     }
   </style>
+  <!-- Three.js 3D Engine Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
-  <div class="container">
-    <h1>🚀 ISS Station Builder & Orbit Map</h1>
-    
-    <div class="dashboard">
-      <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
-      <div>⚡ Passive Income: +<span id="income" class="stat-val">0</span> / sec</div>
-    </div>
-
-    <div class="layout">
-      <div class="panel">
-        <h2>🛠️ Station Modules</h2>
-        <p class="instruction">1. Click a module below to select it.</p>
-        <div class="catalog-list" id="catalog"></div>
-      </div>
-
-      <div class="panel">
-        <h2>🛸 Orbital Map Grid</h2>
-        <p class="instruction" id="status-msg">2. Click an empty grid tile (+) to place the selected module.</p>
-        <div class="map-grid" id="map"></div>
-      </div>
-    </div>
+  <!-- Top Stats Header -->
+  <div class="hud-top">
+    <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
+    <div>⚡ Income: +<span id="income" class="stat-val">0</span> / sec</div>
   </div>
 
+  <!-- Left Module Selector -->
+  <div class="shop-panel">
+    <h2>🚀 Build Modules</h2>
+    <div id="catalog-container"></div>
+  </div>
+
+  <!-- Right Side Instructions -->
+  <div class="info-box">
+    <strong>🎮 Controls:</strong><br>
+    • <b>Joystick</b> (Bottom Left) to move astronaut.<br>
+    • <b>Select module</b> on left, then <b>click grid platform</b> to build.
+  </div>
+
+  <!-- Touch/Mouse Virtual Joystick -->
+  <div id="joystick-base">
+    <div id="joystick-knob"></div>
+  </div>
+
+  <div id="webgl-container"></div>
+
   <script>
+    // --- GAME DATA & CATALOG ---
     let orbitals = 0;
-    let selectedModuleIndex = null;
-    const GRID_SIZE = 25; // 5x5 Map Grid
+    let selectedModuleIdx = 0; // Default to Farm
+    const GRID_SIZE = 5;
+    const TILE_SIZE = 4;
+    const mapGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
 
     const catalog = [
-      { name: 'Farm', cost: 0, income: 1, icon: '🌾' },
-      { name: 'Bedroom', cost: 10, income: 3, icon: '🛏️' },
-      { name: 'Solar Panel Room', cost: 15, income: 5, icon: '☀️' },
-      { name: 'Second Floor', cost: 20, income: 8, icon: '🏢' },
-      { name: 'Research Lab', cost: 35, income: 15, icon: '🧪' },
-      { name: 'Hydroponics Bay', cost: 50, income: 22, icon: '🌿' },
-      { name: 'Observatory Deck', cost: 80, income: 38, icon: '🔭' },
-      { name: 'Command Center', cost: 120, income: 60, icon: '🛰️' }
+      { name: 'Farm', cost: 0, income: 1, color: 0x2ea043, height: 1.5 },
+      { name: 'Bedroom', cost: 10, income: 3, color: 0x1f6feb, height: 2 },
+      { name: 'Solar Panel Room', cost: 15, income: 5, color: 0xd29922, height: 1 },
+      { name: 'Second Floor', cost: 20, income: 8, color: 0x8957e5, height: 3.5 },
+      { name: 'Research Lab', cost: 35, income: 15, color: 0x39c5cf, height: 2.5 },
+      { name: 'Hydroponics Bay', cost: 50, income: 22, color: 0x3fb950, height: 2 },
+      { name: 'Observatory Deck', cost: 80, income: 38, color: 0xa371f7, height: 3 },
+      { name: 'Command Center', cost: 120, income: 60, color: 0xf85149, height: 4 }
     ];
 
-    const mapData = new Array(GRID_SIZE).fill(null);
+    // --- THREE.JS SCENE SETUP ---
+    const container = document.getElementById('webgl-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050811);
+    scene.fog = new THREE.FogExp2(0x050811, 0.015);
 
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // Ambient & Directional Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    sunLight.position.set(20, 40, 20);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    // Starfield Background Particles
+    const starsGeo = new THREE.BufferGeometry();
+    const starCount = 1000;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i++) {
+      starPositions[i] = (Math.random() - 0.5) * 300;
+    }
+    starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8 });
+    scene.add(new THREE.Points(starsGeo, starMat));
+
+    // --- GRID PLATFORMS CREATION ---
+    const gridGroup = new THREE.Group();
+    const platformMeshes = [];
+    const offset = (GRID_SIZE * TILE_SIZE) / 2 - TILE_SIZE / 2;
+
+    for (let x = 0; x < GRID_SIZE; x++) {
+      for (let z = 0; z < GRID_SIZE; z++) {
+        const posX = x * TILE_SIZE - offset;
+        const posZ = z * TILE_SIZE - offset;
+
+        // Platform Base Mesh
+        const geo = new THREE.BoxGeometry(TILE_SIZE - 0.3, 0.4, TILE_SIZE - 0.3);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x161b22, roughness: 0.5, metalness: 0.8 });
+        const platform = new THREE.Mesh(geo, mat);
+        platform.position.set(posX, -0.2, posZ);
+        platform.userData = { gridX: x, gridZ: z };
+        platform.receiveShadow = true;
+
+        gridGroup.add(platform);
+        platformMeshes.push(platform);
+      }
+    }
+    scene.add(gridGroup);
+
+    // --- PLAYER ASTRONAUT CREATION ---
+    const playerGroup = new THREE.Group();
+    
+    // Suit Body
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe6edf3, roughness: 0.3 });
+    const bodyGeo = new THREE.CylinderGeometry(0.5, 0.4, 1.4, 16);
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.7;
+    playerGroup.add(body);
+
+    // Helmet & Gold Visor
+    const helmetGeo = new THREE.SphereGeometry(0.45, 16, 16);
+    const helmet = new THREE.Mesh(helmetGeo, bodyMat);
+    helmet.position.y = 1.5;
+    playerGroup.add(helmet);
+
+    const visorGeo = new THREE.SphereGeometry(0.3, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const visorMat = new THREE.MeshStandardMaterial({ color: 0xd29922, roughness: 0.1, metalness: 0.9 });
+    const visor = new THREE.Mesh(visorGeo, visorMat);
+    visor.rotation.x = Math.PI / 2;
+    visor.position.set(0, 1.5, 0.25);
+    playerGroup.add(visor);
+
+    scene.add(playerGroup);
+
+    // --- SPAWN PLAYER AT FIRST BLOCK LOCATION (0,0) ---
+    // Tile (0,0) position in 3D world:
+    const startTileX = 0 * TILE_SIZE - offset;
+    const startTileZ = 0 * TILE_SIZE - offset;
+    playerGroup.position.set(startTileX, 0, startTileZ);
+
+    // Automatically spawn the first free module (Farm) at (0,0)
+    buildModule(0, 0, catalog[0]);
+
+    // --- VIRTUAL JOYSTICK SYSTEM ---
+    const joystickBase = document.getElementById('joystick-base');
+    const joystickKnob = document.getElementById('joystick-knob');
+    let joystickVector = { x: 0, y: 0 };
+    let isDragging = false;
+
+    function handlePointerStart(e) {
+      isDragging = true;
+      updateJoystick(e);
+    }
+
+    function handlePointerMove(e) {
+      if (!isDragging) return;
+      updateJoystick(e);
+    }
+
+    function handlePointerEnd() {
+      isDragging = false;
+      joystickVector = { x: 0, y: 0 };
+      joystickKnob.style.top = '35px';
+      joystickKnob.style.left = '35px';
+    }
+
+    function updateJoystick(e) {
+      const rect = joystickBase.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      let dx = clientX - centerX;
+      let dy = clientY - centerY;
+      const distance = Math.min(Math.hypot(dx, dy), 40);
+      const angle = Math.atan2(dy, dx);
+
+      const knobX = Math.cos(angle) * distance;
+      const knobY = Math.sin(angle) * distance;
+
+      joystickKnob.style.left = `${35 + knobX}px`;
+      joystickKnob.style.top = `${35 + knobY}px`;
+
+      joystickVector.x = knobX / 40;
+      joystickVector.y = knobY / 40;
+    }
+
+    joystickBase.addEventListener('pointerdown', handlePointerStart);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerEnd);
+
+    // --- UI CATALOG RENDERER ---
     function renderCatalog() {
-      const catalogEl = document.getElementById('catalog');
+      const catalogEl = document.getElementById('catalog-container');
       catalogEl.innerHTML = '';
-
-      catalog.forEach((room, idx) => {
-        const item = document.createElement('div');
-        item.className = `catalog-item ${selectedModuleIndex === idx ? 'selected' : ''}`;
-        item.onclick = () => selectModule(idx);
-        item.innerHTML = `
-          <h3>${room.icon} ${room.name}</h3>
-          <p>Cost: <strong>${room.cost}</strong> Orbitals</p>
-          <p>Income: <strong>+${room.income}</strong>/sec</p>
+      catalog.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = `shop-item ${selectedModuleIdx === idx ? 'active' : ''}`;
+        div.onclick = () => {
+          selectedModuleIdx = idx;
+          renderCatalog();
+        };
+        div.innerHTML = `
+          <h3>${item.name}</h3>
+          <p>Cost: <b>${item.cost}</b> Orbitals | +<b>${item.income}</b>/s</p>
         `;
-        catalogEl.appendChild(item);
+        catalogEl.appendChild(div);
       });
     }
 
-    function selectModule(index) {
-      selectedModuleIndex = index;
-      renderCatalog();
-      const statusMsg = document.getElementById('status-msg');
-      const selected = catalog[index];
-      statusMsg.innerText = `Selected: ${selected.icon} ${selected.name} (${selected.cost} Orbitals). Click any empty (+) grid tile to build.`;
+    // --- BUILDING 3D MODULES ---
+    function buildModule(gx, gz, moduleData) {
+      const posX = gx * TILE_SIZE - offset;
+      const posZ = gz * TILE_SIZE - offset;
+
+      // Create 3D Module Geometry based on type
+      const group = new THREE.Group();
+      const bodyMat = new THREE.MeshStandardMaterial({ color: moduleData.color, roughness: 0.3, metalness: 0.4 });
+      const bodyGeo = new THREE.BoxGeometry(TILE_SIZE - 0.8, moduleData.height, TILE_SIZE - 0.8);
+      const mainBlock = new THREE.Mesh(bodyGeo, bodyMat);
+      mainBlock.position.y = moduleData.height / 2;
+      mainBlock.castShadow = true;
+      group.add(mainBlock);
+
+      // Additional decorative antenna / detail on top
+      const topGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
+      const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      const topDetail = new THREE.Mesh(topGeo, topMat);
+      topDetail.position.y = moduleData.height + 0.4;
+      group.add(topDetail);
+
+      group.position.set(posX, 0, posZ);
+      scene.add(group);
+
+      mapGrid[gx][gz] = moduleData;
     }
 
-    function renderMap() {
-      const mapEl = document.getElementById('map');
-      mapEl.innerHTML = '';
+    // --- RAYCASTING GRID CLICKING ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
-      mapData.forEach((tile, tileIdx) => {
-        const tileEl = document.createElement('div');
-        if (tile === null) {
-          tileEl.className = 'tile empty';
-          tileEl.innerHTML = '<span style="color:#484f58; font-size: 1.2rem;">+</span>';
-          tileEl.onclick = () => buildOnTile(tileIdx);
-        } else {
-          tileEl.className = 'tile occupied';
-          tileEl.innerHTML = `
-            <div class="icon">${tile.icon}</div>
-            <div class="tile-name">${tile.name}</div>
-          `;
+    window.addEventListener('pointerdown', (e) => {
+      // Prevent building when clicking on UI panels
+      if (e.clientX < 280 && e.clientY < 500) return;
+      if (e.clientY > window.innerHeight - 150 && e.clientX < 180) return;
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(platformMeshes);
+
+      if (intersects.length > 0) {
+        const tile = intersects[0].object;
+        const gx = tile.userData.gridX;
+        const gz = tile.userData.gridZ;
+
+        if (mapGrid[gx][gz] !== null) {
+          return; // Tile occupied
         }
-        mapEl.appendChild(tileEl);
-      });
-    }
 
-    function buildOnTile(tileIdx) {
-      if (selectedModuleIndex === null) {
-        alert("Please select a module from the left menu first!");
-        return;
+        const selectedModule = catalog[selectedModuleIdx];
+        if (orbitals >= selectedModule.cost) {
+          orbitals -= selectedModule.cost;
+          buildModule(gx, gz, selectedModule);
+          updateUI();
+        } else {
+          alert(`Not enough Orbitals! Need ${selectedModule.cost - orbitals} more.`);
+        }
       }
+    });
 
-      const module = catalog[selectedModuleIndex];
-      if (orbitals < module.cost) {
-        alert(`Not enough Orbitals! You need ${module.cost - orbitals} more.`);
-        return;
-      }
-
-      orbitals -= module.cost;
-      mapData[tileIdx] = module;
-      
-      updateUI();
-      renderMap();
-    }
-
+    // --- ECONOMY ENGINE ---
     function getPassiveIncome() {
-      return mapData.reduce((sum, tile) => sum + (tile ? tile.income : 0), 0);
+      let income = 0;
+      for (let x = 0; x < GRID_SIZE; x++) {
+        for (let z = 0; z < GRID_SIZE; z++) {
+          if (mapGrid[x][gz] !== undefined && mapGrid[x][z]) {
+            income += mapGrid[x][z].income;
+          }
+        }
+      }
+      return income;
     }
 
     function updateUI() {
@@ -266,9 +430,42 @@
       updateUI();
     }, 1000);
 
+    // --- GAME LOOP & ANIMATION ---
+    const speed = 0.12;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Joystick Movement Handling
+      if (joystickVector.x !== 0 || joystickVector.y !== 0) {
+        playerGroup.position.x += joystickVector.x * speed;
+        playerGroup.position.z += joystickVector.y * speed;
+
+        // Rotate player astronaut to face movement direction
+        const targetAngle = Math.atan2(joystickVector.x, joystickVector.y);
+        playerGroup.rotation.y = targetAngle;
+      }
+
+      // Smooth Camera Follow Player
+      camera.position.x = playerGroup.position.x;
+      camera.position.y = playerGroup.position.y + 12;
+      camera.position.z = playerGroup.position.z + 14;
+      camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z);
+
+      renderer.render(scene, camera);
+    }
+
+    // Window Resize Support
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start App
     renderCatalog();
-    renderMap();
     updateUI();
+    animate();
   </script>
 </body>
 </html>
