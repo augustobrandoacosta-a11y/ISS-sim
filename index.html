@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>3D ISS Space Station Builder - FPV</title>
+  <title>3D ISS Space Station Builder - Extended</title>
   <style>
     * {
       box-sizing: border-box;
@@ -27,7 +27,7 @@
       display: block;
     }
 
-    /* Target Reticle */
+    /* Reticle */
     #crosshair {
       position: absolute;
       top: 50%;
@@ -41,7 +41,73 @@
       z-index: 15;
     }
 
-    /* HUD Header */
+    /* Overlays & Menus */
+    .overlay-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(5, 8, 17, 0.88);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      gap: 15px;
+    }
+    .modal-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 24px;
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.8);
+    }
+    .modal-card h2 {
+      margin: 0;
+      color: #58a6ff;
+      text-align: center;
+    }
+    .menu-btn {
+      background: #238636;
+      border: 1px solid #2ea043;
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      text-align: center;
+    }
+    .menu-btn.secondary {
+      background: #21262d;
+      border-color: #30363d;
+      color: #c9d1d9;
+    }
+    .menu-btn:active { transform: scale(0.98); }
+
+    /* Form Fields */
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.85rem;
+    }
+    .field-group label { color: #8b949e; }
+    .field-group input {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: white;
+      padding: 8px;
+      border-radius: 6px;
+    }
+
+    /* HUD Top Bar */
     .hud-top {
       position: absolute;
       top: 12px;
@@ -53,15 +119,15 @@
       padding: 8px 20px;
       border-radius: 30px;
       display: flex;
-      gap: 20px;
-      font-size: 1rem;
+      gap: 16px;
+      font-size: 0.95rem;
       font-weight: bold;
       z-index: 10;
       pointer-events: none;
     }
     .stat-val { color: #3fb950; }
 
-    /* Module Selector Panel */
+    /* Shop Panel */
     .shop-panel {
       position: absolute;
       top: 12px;
@@ -98,7 +164,27 @@
     .shop-item h3 { margin: 0; font-size: 0.85rem; color: #f0883e; }
     .shop-item p { margin: 2px 0 0 0; font-size: 0.75rem; color: #8b949e; }
 
-    /* Controls */
+    /* Top Right Buttons */
+    .top-right-bar {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 30;
+    }
+    .icon-btn {
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid #30363d;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.85rem;
+    }
+
+    /* Joystick & Build Button */
     #joystick-base {
       position: absolute;
       bottom: 25px;
@@ -140,7 +226,6 @@
       z-index: 30;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
-    #build-btn:active { background: #2ea043; transform: scale(0.95); }
     #build-btn:disabled { background: #343942; border-color: #484f58; color: #8b949e; opacity: 0.6; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -149,9 +234,16 @@
 
   <div id="crosshair"></div>
 
+  <!-- HUD -->
   <div class="hud-top">
-    <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
-    <div>⚡ Income: +<span id="income" class="stat-val">0</span> / sec</div>
+    <div>💰 <span id="orbitals" class="stat-val">0</span></div>
+    <div>⚡ +<span id="income" class="stat-val">0</span>/s</div>
+  </div>
+
+  <div class="top-right-bar">
+    <button class="icon-btn" onclick="toggleAudio()">🎵 Sound</button>
+    <button class="icon-btn" onclick="openRoomMaker()">🛠️ Maker</button>
+    <button class="icon-btn" onclick="openMenu()">⏸️ Menu</button>
   </div>
 
   <div class="shop-panel">
@@ -162,12 +254,51 @@
   <div id="joystick-base"><div id="joystick-knob"></div></div>
   <button id="build-btn" disabled>BUILD</button>
 
+  <!-- Main Menu Overlay -->
+  <div id="main-menu" class="overlay-modal">
+    <div class="modal-card">
+      <h2>🚀 ISS Builder</h2>
+      <button class="menu-btn" onclick="startGame()">Start Game</button>
+      <button class="menu-btn secondary" onclick="openRoomMaker()">Room Maker</button>
+      <button class="menu-btn secondary" onclick="toggleAudio()">Toggle Audio</button>
+    </div>
+  </div>
+
+  <!-- Custom Room Maker Modal -->
+  <div id="room-maker-modal" class="overlay-modal" style="display: none;">
+    <div class="modal-card">
+      <h2>🛠️ Create Custom Room</h2>
+      <div class="field-group">
+        <label>Room Name</label>
+        <input type="text" id="custom-name" value="Quantum Core">
+      </div>
+      <div class="field-group">
+        <label>Cost (Orbitals)</label>
+        <input type="number" id="custom-cost" value="40">
+      </div>
+      <div class="field-group">
+        <label>Income / sec</label>
+        <input type="number" id="custom-income" value="18">
+      </div>
+      <div class="field-group">
+        <label>Height</label>
+        <input type="range" id="custom-height" min="1" max="5" step="0.5" value="2.5">
+      </div>
+      <div class="field-group">
+        <label>Module Color</label>
+        <input type="color" id="custom-color" value="#00ffcc">
+      </div>
+      <button class="menu-btn" onclick="saveCustomRoom()">Add to Catalog</button>
+      <button class="menu-btn secondary" onclick="closeRoomMaker()">Cancel</button>
+    </div>
+  </div>
+
   <div id="webgl-container"></div>
 
   <script>
     let orbitals = 0;
     let selectedModuleIdx = 0;
-    const GRID_SIZE = 5;
+    const GRID_SIZE = 10; // Expanded Grid 10x10
     const TILE_SIZE = 4;
     const offset = (GRID_SIZE * TILE_SIZE) / 2 - TILE_SIZE / 2;
     const mapGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
@@ -175,19 +306,17 @@
     const catalog = [
       { id: 'farm', name: 'Farm Module', cost: 0, income: 1, color: 0x2ea043, height: 1.6 },
       { id: 'bedroom', name: 'Habitation Pod', cost: 10, income: 3, color: 0x1f6feb, height: 2.0 },
-      { id: 'solar', name: 'Solar Panel Hub', cost: 15, income: 5, color: 0xd29922, height: 1.8 },
+      { id: 'solar', name: 'Solar Hub', cost: 15, income: 5, color: 0xd29922, height: 1.8 },
       { id: 'second_floor', name: '2-Story Tower', cost: 20, income: 8, color: 0x8957e5, height: 3.6 },
       { id: 'lab', name: 'Research Lab', cost: 35, income: 15, color: 0x39c5cf, height: 2.2 },
-      { id: 'hydro', name: 'Hydroponics Bay', cost: 50, income: 22, color: 0x3fb950, height: 2.0 },
-      { id: 'observatory', name: 'Cupola Dome', cost: 80, income: 38, color: 0xa371f7, height: 2.5 },
-      { id: 'command', name: 'Command Center', cost: 120, income: 60, color: 0xf85149, height: 3.8 }
+      { id: 'observatory', name: 'Cupola Dome', cost: 80, income: 38, color: 0xa371f7, height: 2.5 }
     ];
 
     // Scene Setup
     const container = document.getElementById('webgl-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050811);
-    scene.fog = new THREE.FogExp2(0x050811, 0.015);
+    scene.fog = new THREE.FogExp2(0x050811, 0.012);
 
     const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -195,20 +324,19 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // Realistic Space Lighting
     scene.add(new THREE.AmbientLight(0xd1e8ff, 0.6));
     const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    sunLight.position.set(30, 50, 20);
+    sunLight.position.set(40, 60, 30);
     scene.add(sunLight);
 
-    // Player Group
+    // Player Setup
     const playerGroup = new THREE.Group();
     playerGroup.add(camera);
     scene.add(playerGroup);
 
-    let targetPlayerY = 1.6; // For camera smooth lerp
+    let targetPlayerY = 1.6;
 
-    // Grid Platforms
+    // Grid Platforms (10x10)
     const platformMeshes = [];
     for (let x = 0; x < GRID_SIZE; x++) {
       for (let z = 0; z < GRID_SIZE; z++) {
@@ -221,7 +349,6 @@
         platform.position.set(posX, -0.1, posZ);
         platform.userData = { gridX: x, gridZ: z };
 
-        // Grid Outline
         const edges = new THREE.EdgesGeometry(geo);
         const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x30363d }));
         platform.add(line);
@@ -231,87 +358,24 @@
       }
     }
 
-    // Builder function for realistic detailed rooms
+    // Module Renderer
     function createDetailedModule(moduleData) {
       const group = new THREE.Group();
       const metalMat = new THREE.MeshStandardMaterial({ color: 0xc0c8d0, metalness: 0.8, roughness: 0.3 });
       const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x21262d, metalness: 0.7, roughness: 0.4 });
-      const glassMat = new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.5, roughness: 0.1 });
-      const glowMat = new THREE.MeshBasicMaterial({ color: moduleData.color });
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.5 });
 
-      // Core Box Frame
       const baseGeo = new THREE.BoxGeometry(TILE_SIZE - 0.4, moduleData.height, TILE_SIZE - 0.4);
       const baseMesh = new THREE.Mesh(baseGeo, metalMat);
       baseMesh.position.y = moduleData.height / 2;
       group.add(baseMesh);
 
-      // Unique Architectural Details
-      if (moduleData.id === 'farm' || moduleData.id === 'hydro') {
-        // Glass Greenhouse Roof
-        const domeGeo = new THREE.SphereGeometry(1.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-        const dome = new THREE.Mesh(domeGeo, glassMat);
-        dome.position.y = moduleData.height;
-        group.add(dome);
-
-        // Green Internal LED
-        const light = new THREE.PointLight(0x3fb950, 1, 4);
-        light.position.y = moduleData.height / 2;
-        group.add(light);
-      } else if (moduleData.id === 'bedroom') {
-        // Pressure Cylinder Body
-        const cylGeo = new THREE.CylinderGeometry(1.2, 1.2, 3.2, 16);
-        const cyl = new THREE.Mesh(cylGeo, metalMat);
-        cyl.rotation.z = Math.PI / 2;
-        cyl.position.y = moduleData.height / 2;
-        group.add(cyl);
-
-        // Porthole Windows
-        const portGeo = new THREE.CylinderGeometry(0.3, 0.3, 3.3, 12);
-        const port = new THREE.Mesh(portGeo, glassMat);
-        port.rotation.z = Math.PI / 2;
-        port.position.y = moduleData.height / 2;
-        group.add(port);
-      } else if (moduleData.id === 'solar') {
-        // Extended Solar Panel Wings
-        const wingGeo = new THREE.BoxGeometry(4.2, 0.05, 1.2);
-        const solarMat = new THREE.MeshStandardMaterial({ color: 0x0033aa, roughness: 0.2, metalness: 0.9 });
-        const wings = new THREE.Mesh(wingGeo, solarMat);
-        wings.position.y = moduleData.height + 0.2;
-        group.add(wings);
-      } else if (moduleData.id === 'lab') {
-        // Glowing Containment Ring
-        const ringGeo = new THREE.TorusGeometry(1.4, 0.1, 8, 24);
-        const ring = new THREE.Mesh(ringGeo, glowMat);
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = moduleData.height / 2;
-        group.add(ring);
-      } else if (moduleData.id === 'observatory') {
-        // Glass Cupola Observation Deck
-        const cupolaGeo = new THREE.SphereGeometry(1.2, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2.5);
-        const cupola = new THREE.Mesh(cupolaGeo, glassMat);
-        cupola.position.y = moduleData.height;
-        group.add(cupola);
-      } else if (moduleData.id === 'command') {
-        // Antenna & Satellite Dish
-        const dishGeo = new THREE.ConeGeometry(0.8, 0.4, 16);
-        const dish = new THREE.Mesh(dishGeo, darkMetalMat);
-        dish.position.set(0, moduleData.height + 0.5, 0);
-        dish.rotation.x = -Math.PI / 4;
-        group.add(dish);
-
-        const beacon = new THREE.PointLight(0xff0000, 1.5, 5);
-        beacon.position.set(0, moduleData.height + 0.8, 0);
-        group.add(beacon);
-      }
-
-      // Corner Pillar Frames
-      const pillarGeo = new THREE.BoxGeometry(0.2, moduleData.height, 0.2);
-      const corners = [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]];
-      corners.forEach(([cx, cz]) => {
-        const pillar = new THREE.Mesh(pillarGeo, darkMetalMat);
-        pillar.position.set(cx, moduleData.height / 2, cz);
-        group.add(pillar);
-      });
+      // Custom Color Accent Trim
+      const trimGeo = new THREE.BoxGeometry(TILE_SIZE - 0.35, 0.2, TILE_SIZE - 0.35);
+      const trimMat = new THREE.MeshBasicMaterial({ color: moduleData.color });
+      const trim = new THREE.Mesh(trimGeo, trimMat);
+      trim.position.y = moduleData.height;
+      group.add(trim);
 
       return group;
     }
@@ -326,24 +390,89 @@
       mapGrid[gx][gz] = moduleData;
     }
 
-    // Starter Central Module at (2, 2)
-    const START_GX = 2, START_GZ = 2;
+    // Center Spawn (5,5)
+    const START_GX = 5, START_GZ = 5;
     buildModule(START_GX, START_GZ, catalog[0]);
 
     const startX = START_GX * TILE_SIZE - offset;
     const startZ = START_GZ * TILE_SIZE - offset;
     playerGroup.position.set(startX, catalog[0].height, startZ);
     targetPlayerY = catalog[0].height;
-    camera.position.set(0, 1.4, 0); // Eye height
+    camera.position.set(0, 1.4, 0);
 
-    // Ghost Preview Placement Box
+    // Ghost Preview
     const ghostGeo = new THREE.BoxGeometry(TILE_SIZE - 0.4, 1, TILE_SIZE - 0.4);
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x3fb950, wireframe: true, transparent: true, opacity: 0.6 });
     const ghostBox = new THREE.Mesh(ghostGeo, ghostMat);
     ghostBox.visible = false;
     scene.add(ghostBox);
 
-    // Joystick Touch Controls
+    // Procedural Web Audio Ambient Space Music
+    let audioCtx = null;
+    let isPlayingAudio = false;
+
+    function toggleAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const freqs = [130.81, 196.00, 233.08, 293.66]; // C3, G3, Bb3, D4 ambient space chord
+        freqs.forEach((f) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          const filter = audioCtx.createBiquadFilter();
+
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          filter.type = 'lowpass';
+          filter.frequency.value = 350;
+
+          gain.gain.value = 0.02;
+
+          osc.connect(filter);
+          filter.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+        });
+        isPlayingAudio = true;
+      } else {
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+          isPlayingAudio = true;
+        } else if (audioCtx.state === 'running') {
+          audioCtx.suspend();
+          isPlayingAudio = false;
+        }
+      }
+    }
+
+    // Room Maker Logic
+    function openRoomMaker() {
+      document.getElementById('room-maker-modal').style.display = 'flex';
+    }
+
+    function closeRoomMaker() {
+      document.getElementById('room-maker-modal').style.display = 'none';
+    }
+
+    function saveCustomRoom() {
+      const name = document.getElementById('custom-name').value || 'Custom Room';
+      const cost = parseInt(document.getElementById('custom-cost').value) || 30;
+      const income = parseInt(document.getElementById('custom-income').value) || 10;
+      const height = parseFloat(document.getElementById('custom-height').value) || 2.0;
+      const colorHex = document.getElementById('custom-color').value;
+      const color = parseInt(colorHex.replace('#', '0x'));
+
+      catalog.push({ id: 'custom_' + Date.now(), name, cost, income, color, height });
+      renderCatalog();
+      closeRoomMaker();
+    }
+
+    function openMenu() { document.getElementById('main-menu').style.display = 'flex'; }
+    function startGame() {
+      document.getElementById('main-menu').style.display = 'none';
+      if (!isPlayingAudio) toggleAudio();
+    }
+
+    // Controls
     const joystickBase = document.getElementById('joystick-base');
     const joystickKnob = document.getElementById('joystick-knob');
     let joystickVector = { x: 0, y: 0 };
@@ -379,7 +508,7 @@
     window.addEventListener('pointermove', handleJoyMove);
     window.addEventListener('pointerup', handleJoyEnd);
 
-    // Smooth First-Person Look Controls
+    // Camera Look
     let isLooking = false;
     let lastMousePos = { x: 0, y: 0 };
     let pitch = 0;
@@ -418,7 +547,7 @@
       });
     }
 
-    // Aim Raycaster & Building
+    // Raycaster Aim
     const raycaster = new THREE.Raycaster();
     const buildBtn = document.getElementById('build-btn');
     let targetTile = null;
@@ -457,11 +586,9 @@
       }
     };
 
-    // Smooth Movement Logic (No Height Glitch)
     function updatePlayerMovement() {
       if (joystickVector.x !== 0 || joystickVector.y !== 0) {
-        const moveSpeed = 0.08;
-        
+        const moveSpeed = 0.09;
         const forwardX = -Math.sin(playerGroup.rotation.y);
         const forwardZ = -Math.cos(playerGroup.rotation.y);
         const rightX = Math.cos(playerGroup.rotation.y);
@@ -478,12 +605,11 @@
           if (block !== null) {
             playerGroup.position.x = nextX;
             playerGroup.position.z = nextZ;
-            targetPlayerY = block.height; // Set target height for smooth transition
+            targetPlayerY = block.height;
           }
         }
       }
 
-      // Smooth Height Lerp (Fixes camera pop/glitch when moving between different height rooms)
       playerGroup.position.y += (targetPlayerY - playerGroup.position.y) * 0.15;
     }
 
