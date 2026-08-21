@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>3D ISS Space Station Builder</title>
+  <title>3D ISS Space Station Builder - FPV</title>
   <style>
     * {
       box-sizing: border-box;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       user-select: none;
       -webkit-user-select: none;
-      -webkit-touch-callout: none;
+      touch-action: none;
     }
     body, html {
       margin: 0;
@@ -20,7 +20,6 @@
       overflow: hidden;
       background-color: #050811;
       color: #c9d1d9;
-      touch-action: none; /* Prevents tablet pull-to-refresh and page dragging */
     }
     #webgl-container {
       width: 100%;
@@ -28,7 +27,26 @@
       display: block;
     }
 
-    /* HUD Overlay */
+    /* First Person Aiming Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 14px;
+      height: 14px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 15;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(88, 166, 255, 0.8);
+    }
+    #crosshair::before { top: 6px; left: 0; width: 14px; height: 2px; }
+    #crosshair::after { top: 0; left: 6px; width: 2px; height: 14px; }
+
+    /* HUD Header */
     .hud-top {
       position: absolute;
       top: 12px;
@@ -44,19 +62,16 @@
       font-size: 1rem;
       font-weight: bold;
       z-index: 10;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       pointer-events: none;
     }
-    .stat-val {
-      color: #3fb950;
-    }
+    .stat-val { color: #3fb950; }
 
-    /* Module Selector Panel (Tablet Responsive) */
+    /* Module Selector Panel */
     .shop-panel {
       position: absolute;
       top: 12px;
       left: 12px;
-      width: 240px;
+      width: 210px;
       max-height: calc(100vh - 160px);
       background: rgba(22, 27, 34, 0.9);
       border: 1px solid #30363d;
@@ -65,59 +80,30 @@
       padding: 10px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       overflow-y: auto;
       z-index: 20;
     }
     .shop-panel h2 {
       margin: 0 0 4px 0;
-      font-size: 1rem;
+      font-size: 0.95rem;
       color: #58a6ff;
     }
     .shop-item {
       background: rgba(33, 38, 45, 0.8);
       border: 1px solid #30363d;
       border-radius: 8px;
-      padding: 10px; /* Larger touch targets for tablet fingers */
+      padding: 8px;
       cursor: pointer;
-      transition: all 0.2s;
-    }
-    .shop-item:hover, .shop-item:active {
-      border-color: #58a6ff;
-      background: rgba(40, 46, 54, 0.9);
     }
     .shop-item.active {
       border-color: #238636;
       background: rgba(35, 134, 54, 0.3);
     }
-    .shop-item h3 {
-      margin: 0;
-      font-size: 0.85rem;
-      color: #f0883e;
-    }
-    .shop-item p {
-      margin: 2px 0 0 0;
-      font-size: 0.75rem;
-      color: #8b949e;
-    }
+    .shop-item h3 { margin: 0; font-size: 0.85rem; color: #f0883e; }
+    .shop-item p { margin: 2px 0 0 0; font-size: 0.75rem; color: #8b949e; }
 
-    /* Instruction Tooltip */
-    .info-box {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(22, 27, 34, 0.9);
-      border: 1px solid #30363d;
-      backdrop-filter: blur(8px);
-      border-radius: 12px;
-      padding: 8px 12px;
-      font-size: 0.8rem;
-      max-width: 200px;
-      z-index: 10;
-      pointer-events: none;
-    }
-
-    /* Virtual Joystick Elements */
+    /* Touch Controls */
     #joystick-base {
       position: absolute;
       bottom: 25px;
@@ -127,7 +113,6 @@
       background: rgba(255, 255, 255, 0.1);
       border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
-      touch-action: none;
       z-index: 30;
     }
     #joystick-knob {
@@ -142,38 +127,45 @@
       pointer-events: none;
     }
 
-    @media (max-width: 768px) {
-      .shop-panel {
-        width: 180px;
-      }
-      .info-box {
-        display: none; /* Hide on smaller tablet screens to save space */
-      }
+    #build-btn {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 90px;
+      height: 90px;
+      background: #238636;
+      border: 2px solid #2ea043;
+      border-radius: 50%;
+      color: white;
+      font-weight: bold;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 30;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
+    #build-btn:active { background: #2ea043; transform: scale(0.95); }
+    #build-btn:disabled { background: #343942; border-color: #484f58; color: #8b949e; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
+
+  <div id="crosshair"></div>
 
   <div class="hud-top">
     <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
     <div>⚡ Income: +<span id="income" class="stat-val">0</span> / sec</div>
   </div>
 
-  <div class="shop-panel" id="shop-panel">
+  <div class="shop-panel">
     <h2>🚀 Modules</h2>
     <div id="catalog-container"></div>
   </div>
 
-  <div class="info-box">
-    <strong>🎮 Controls:</strong><br>
-    • <b>Joystick</b> to move astronaut.<br>
-    • <b>Tap module</b> on left, then <b>tap platform</b> to place room.
-  </div>
-
-  <div id="joystick-base">
-    <div id="joystick-knob"></div>
-  </div>
+  <div id="joystick-base"><div id="joystick-knob"></div></div>
+  <button id="build-btn" disabled>BUILD</button>
 
   <div id="webgl-container"></div>
 
@@ -182,6 +174,7 @@
     let selectedModuleIdx = 0;
     const GRID_SIZE = 5;
     const TILE_SIZE = 4;
+    const offset = (GRID_SIZE * TILE_SIZE) / 2 - TILE_SIZE / 2;
     const mapGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
 
     const catalog = [
@@ -195,158 +188,98 @@
       { name: 'Command Center', cost: 120, income: 60, color: 0xf85149, height: 4 }
     ];
 
+    // Scene Setup
     const container = document.getElementById('webgl-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050811);
-    scene.fog = new THREE.FogExp2(0x050811, 0.015);
+    scene.fog = new THREE.FogExp2(0x050811, 0.02);
 
-    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
     sunLight.position.set(20, 40, 20);
-    sunLight.castShadow = true;
     scene.add(sunLight);
 
-    // Starfield
-    const starsGeo = new THREE.BufferGeometry();
-    const starCount = 800;
-    const starPositions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount * 3; i++) {
-      starPositions[i] = (Math.random() - 0.5) * 300;
-    }
-    starsGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.8 });
-    scene.add(new THREE.Points(starsGeo, starMat));
+    // Player First-Person Container
+    const playerGroup = new THREE.Group();
+    playerGroup.add(camera);
+    camera.position.set(0, 1.4, 0); // Eye height
+    scene.add(playerGroup);
 
     // Grid Platforms
-    const gridGroup = new THREE.Group();
     const platformMeshes = [];
-    const offset = (GRID_SIZE * TILE_SIZE) / 2 - TILE_SIZE / 2;
-
     for (let x = 0; x < GRID_SIZE; x++) {
       for (let z = 0; z < GRID_SIZE; z++) {
         const posX = x * TILE_SIZE - offset;
         const posZ = z * TILE_SIZE - offset;
 
-        const geo = new THREE.BoxGeometry(TILE_SIZE - 0.3, 0.4, TILE_SIZE - 0.3);
-        const mat = new THREE.MeshStandardMaterial({ color: 0x161b22, roughness: 0.5, metalness: 0.8 });
+        const geo = new THREE.BoxGeometry(TILE_SIZE - 0.2, 0.2, TILE_SIZE - 0.2);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x161b22, wireframe: true });
         const platform = new THREE.Mesh(geo, mat);
-        platform.position.set(posX, -0.2, posZ);
+        platform.position.set(posX, -0.1, posZ);
         platform.userData = { gridX: x, gridZ: z };
-        platform.receiveShadow = true;
 
-        gridGroup.add(platform);
+        scene.add(platform);
         platformMeshes.push(platform);
       }
     }
-    scene.add(gridGroup);
 
-    // Player Astronaut
-    const playerGroup = new THREE.Group();
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe6edf3, roughness: 0.3 });
-    const bodyGeo = new THREE.CylinderGeometry(0.5, 0.4, 1.4, 16);
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0.7;
-    playerGroup.add(body);
-
-    const helmetGeo = new THREE.SphereGeometry(0.45, 16, 16);
-    const helmet = new THREE.Mesh(helmetGeo, bodyMat);
-    helmet.position.y = 1.5;
-    playerGroup.add(helmet);
-
-    const visorGeo = new THREE.SphereGeometry(0.3, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-    const visorMat = new THREE.MeshStandardMaterial({ color: 0xd29922, roughness: 0.1, metalness: 0.9 });
-    const visor = new THREE.Mesh(visorGeo, visorMat);
-    visor.rotation.x = Math.PI / 2;
-    visor.position.set(0, 1.5, 0.25);
-    playerGroup.add(visor);
-
-    scene.add(playerGroup);
-
-    // Spawn Player at Block (0,0)
-    const startTileX = 0 * TILE_SIZE - offset;
-    const startTileZ = 0 * TILE_SIZE - offset;
-    playerGroup.position.set(startTileX, 0, startTileZ);
-
+    // Initial Spawn at Tile (0,0)
     buildModule(0, 0, catalog[0]);
+    const startX = 0 * TILE_SIZE - offset;
+    const startZ = 0 * TILE_SIZE - offset;
+    playerGroup.position.set(startX, catalog[0].height, startZ);
 
-    // Tablet & Touch Joystick System
+    // Joystick Steering
     const joystickBase = document.getElementById('joystick-base');
     const joystickKnob = document.getElementById('joystick-knob');
     let joystickVector = { x: 0, y: 0 };
     let isDragging = false;
 
-    function handleJoystickStart(e) {
-      e.stopPropagation(); // Prevents raycasting when touching joystick
-      isDragging = true;
-      updateJoystick(e);
+    function handleStart(e) { e.stopPropagation(); isDragging = true; updateJoy(e); }
+    function handleMove(e) { if (isDragging) { e.stopPropagation(); updateJoy(e); } }
+    function handleEnd(e) {
+      if (isDragging) {
+        e.stopPropagation(); isDragging = false;
+        joystickVector = { x: 0, y: 0 };
+        joystickKnob.style.top = '30px'; joystickKnob.style.left = '30px';
+      }
     }
 
-    function handleJoystickMove(e) {
-      if (!isDragging) return;
-      e.stopPropagation();
-      updateJoystick(e);
-    }
-
-    function handleJoystickEnd(e) {
-      if (!isDragging) return;
-      e.stopPropagation();
-      isDragging = false;
-      joystickVector = { x: 0, y: 0 };
-      joystickKnob.style.top = '30px';
-      joystickKnob.style.left = '30px';
-    }
-
-    function updateJoystick(e) {
+    function updateJoy(e) {
       const rect = joystickBase.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-      let dx = clientX - centerX;
-      let dy = clientY - centerY;
-      const distance = Math.min(Math.hypot(dx, dy), 35);
+      let dx = clientX - cx, dy = clientY - cy;
+      const dist = Math.min(Math.hypot(dx, dy), 35);
       const angle = Math.atan2(dy, dx);
 
-      const knobX = Math.cos(angle) * distance;
-      const knobY = Math.sin(angle) * distance;
-
-      joystickKnob.style.left = `${30 + knobX}px`;
-      joystickKnob.style.top = `${30 + knobY}px`;
-
-      joystickVector.x = knobX / 35;
-      joystickVector.y = knobY / 35;
+      const kx = Math.cos(angle) * dist, ky = Math.sin(angle) * dist;
+      joystickKnob.style.left = `${30 + kx}px`; joystickKnob.style.top = `${30 + ky}px`;
+      joystickVector.x = kx / 35; joystickVector.y = ky / 35;
     }
 
-    joystickBase.addEventListener('pointerdown', handleJoystickStart);
-    window.addEventListener('pointermove', handleJoystickMove);
-    window.addEventListener('pointerup', handleJoystickEnd);
+    joystickBase.addEventListener('pointerdown', handleStart);
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleEnd);
 
-    // Catalog UI
+    // Catalog Panel
     function renderCatalog() {
       const catalogEl = document.getElementById('catalog-container');
       catalogEl.innerHTML = '';
       catalog.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = `shop-item ${selectedModuleIdx === idx ? 'active' : ''}`;
-        div.onclick = (e) => {
-          e.stopPropagation();
-          selectedModuleIdx = idx;
-          renderCatalog();
-        };
-        div.innerHTML = `
-          <h3>${item.name}</h3>
-          <p>Cost: <b>${item.cost}</b> Orbitals | +<b>${item.income}</b>/s</p>
-        `;
+        div.onclick = (e) => { e.stopPropagation(); selectedModuleIdx = idx; renderCatalog(); };
+        div.innerHTML = `<h3>${item.name}</h3><p>Cost: <b>${item.cost}</b> | +<b>${item.income}</b>/s</p>`;
         catalogEl.appendChild(div);
       });
     }
@@ -356,73 +289,82 @@
       const posZ = gz * TILE_SIZE - offset;
 
       const group = new THREE.Group();
-      const bodyMat = new THREE.MeshStandardMaterial({ color: moduleData.color, roughness: 0.3, metalness: 0.4 });
-      const bodyGeo = new THREE.BoxGeometry(TILE_SIZE - 0.8, moduleData.height, TILE_SIZE - 0.8);
-      const mainBlock = new THREE.Mesh(bodyGeo, bodyMat);
+      const mat = new THREE.MeshStandardMaterial({ color: moduleData.color, roughness: 0.3 });
+      const geo = new THREE.BoxGeometry(TILE_SIZE - 0.4, moduleData.height, TILE_SIZE - 0.4);
+      const mainBlock = new THREE.Mesh(geo, mat);
       mainBlock.position.y = moduleData.height / 2;
-      mainBlock.castShadow = true;
       group.add(mainBlock);
-
-      const topGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.8, 8);
-      const topMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      const topDetail = new THREE.Mesh(topGeo, topMat);
-      topDetail.position.y = moduleData.height + 0.4;
-      group.add(topDetail);
 
       group.position.set(posX, 0, posZ);
       scene.add(group);
-
       mapGrid[gx][gz] = moduleData;
     }
 
-    // Touch Tap Detection (Distinguishes Tapping from Dragging on Tablets)
+    // Aim Raycaster for Building
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    let touchStartPos = { x: 0, y: 0 };
+    const buildBtn = document.getElementById('build-btn');
+    let aimedTile = null;
 
-    window.addEventListener('pointerdown', (e) => {
-      touchStartPos = { x: e.clientX, y: e.clientY };
-    });
-
-    window.addEventListener('pointerup', (e) => {
-      // Don't build if touching UI or joystick
-      if (isDragging || e.target !== renderer.domElement) return;
-
-      // Ensure it was a distinct Tap, not a drag swipe across screen (max 10px shift)
-      const dist = Math.hypot(e.clientX - touchStartPos.x, e.clientY - touchStartPos.y);
-      if (dist > 10) return;
-
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
+    function checkAim() {
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const intersects = raycaster.intersectObjects(platformMeshes);
 
       if (intersects.length > 0) {
         const tile = intersects[0].object;
-        const gx = tile.userData.gridX;
-        const gz = tile.userData.gridZ;
+        const gx = tile.userData.gridX, gz = tile.userData.gridZ;
 
-        if (mapGrid[gx][gz] !== null) return;
-
-        const selectedModule = catalog[selectedModuleIdx];
-        if (orbitals >= selectedModule.cost) {
-          orbitals -= selectedModule.cost;
-          buildModule(gx, gz, selectedModule);
-          updateUI();
-        } else {
-          alert(`Not enough Orbitals! Need ${selectedModule.cost - orbitals} more.`);
+        if (mapGrid[gx][gz] === null) {
+          aimedTile = { gx, gz };
+          buildBtn.disabled = orbitals < catalog[selectedModuleIdx].cost;
+          return;
         }
       }
-    });
+      aimedTile = null;
+      buildBtn.disabled = true;
+    }
+
+    buildBtn.onclick = () => {
+      if (!aimedTile) return;
+      const module = catalog[selectedModuleIdx];
+      if (orbitals >= module.cost) {
+        orbitals -= module.cost;
+        buildModule(aimedTile.gx, aimedTile.gz, module);
+        updateUI();
+      }
+    };
+
+    // Movement Restrictions (Must walk on blocks)
+    function updatePlayerMovement() {
+      // Rotation (Looking left/right)
+      playerGroup.rotation.y -= joystickVector.x * 0.04;
+
+      // Forward/Backward Step
+      if (joystickVector.y !== 0) {
+        const moveSpeed = -joystickVector.y * 0.1;
+        const nextX = playerGroup.position.x - Math.sin(playerGroup.rotation.y) * moveSpeed;
+        const nextZ = playerGroup.position.z - Math.cos(playerGroup.rotation.y) * moveSpeed;
+
+        // Convert world pos to Grid Tile Index
+        const targetGx = Math.round((nextX + offset) / TILE_SIZE);
+        const targetGz = Math.round((nextZ + offset) / TILE_SIZE);
+
+        // Check if candidate tile is within bounds AND has a built block
+        if (targetGx >= 0 && targetGx < GRID_SIZE && targetGz >= 0 && targetGz < GRID_SIZE) {
+          const block = mapGrid[targetGx][targetGz];
+          if (block !== null) {
+            playerGroup.position.x = nextX;
+            playerGroup.position.z = nextZ;
+            playerGroup.position.y = block.height; // Stand on top of the block surface
+          }
+        }
+      }
+    }
 
     function getPassiveIncome() {
       let income = 0;
       for (let x = 0; x < GRID_SIZE; x++) {
         for (let z = 0; z < GRID_SIZE; z++) {
-          if (mapGrid[x][z]) {
-            income += mapGrid[x][z].income;
-          }
+          if (mapGrid[x][z]) income += mapGrid[x][z].income;
         }
       }
       return income;
@@ -433,30 +375,12 @@
       document.getElementById('income').innerText = getPassiveIncome();
     }
 
-    setInterval(() => {
-      orbitals += getPassiveIncome();
-      updateUI();
-    }, 1000);
-
-    // Animation Loop
-    const speed = 0.12;
+    setInterval(() => { orbitals += getPassiveIncome(); updateUI(); }, 1000);
 
     function animate() {
       requestAnimationFrame(animate);
-
-      if (joystickVector.x !== 0 || joystickVector.y !== 0) {
-        playerGroup.position.x += joystickVector.x * speed;
-        playerGroup.position.z += joystickVector.y * speed;
-
-        const targetAngle = Math.atan2(joystickVector.x, joystickVector.y);
-        playerGroup.rotation.y = targetAngle;
-      }
-
-      camera.position.x = playerGroup.position.x;
-      camera.position.y = playerGroup.position.y + 12;
-      camera.position.z = playerGroup.position.z + 14;
-      camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z);
-
+      updatePlayerMovement();
+      checkAim();
       renderer.render(scene, camera);
     }
 
