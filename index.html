@@ -27,15 +27,14 @@
       display: block;
     }
 
-    /* Crosshair Target Dot */
+    /* Target Reticle */
     #crosshair {
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 8px;
-      height: 8px;
-      background: #58a6ff;
-      border: 2px solid white;
+      width: 10px;
+      height: 10px;
+      border: 2px solid #58a6ff;
       border-radius: 50%;
       transform: translate(-50%, -50%);
       pointer-events: none;
@@ -67,7 +66,7 @@
       position: absolute;
       top: 12px;
       left: 12px;
-      width: 200px;
+      width: 210px;
       max-height: calc(100vh - 160px);
       background: rgba(22, 27, 34, 0.9);
       border: 1px solid #30363d;
@@ -99,7 +98,7 @@
     .shop-item h3 { margin: 0; font-size: 0.85rem; color: #f0883e; }
     .shop-item p { margin: 2px 0 0 0; font-size: 0.75rem; color: #8b949e; }
 
-    /* Touch Controls */
+    /* Controls */
     #joystick-base {
       position: absolute;
       bottom: 25px;
@@ -174,21 +173,21 @@
     const mapGrid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
 
     const catalog = [
-      { name: 'Farm', cost: 0, income: 1, color: 0x2ea043, height: 1.5 },
-      { name: 'Bedroom', cost: 10, income: 3, color: 0x1f6feb, height: 2 },
-      { name: 'Solar Panel Room', cost: 15, income: 5, color: 0xd29922, height: 1 },
-      { name: 'Second Floor', cost: 20, income: 8, color: 0x8957e5, height: 3.5 },
-      { name: 'Research Lab', cost: 35, income: 15, color: 0x39c5cf, height: 2.5 },
-      { name: 'Hydroponics Bay', cost: 50, income: 22, color: 0x3fb950, height: 2 },
-      { name: 'Observatory Deck', cost: 80, income: 38, color: 0xa371f7, height: 3 },
-      { name: 'Command Center', cost: 120, income: 60, color: 0xf85149, height: 4 }
+      { id: 'farm', name: 'Farm Module', cost: 0, income: 1, color: 0x2ea043, height: 1.6 },
+      { id: 'bedroom', name: 'Habitation Pod', cost: 10, income: 3, color: 0x1f6feb, height: 2.0 },
+      { id: 'solar', name: 'Solar Panel Hub', cost: 15, income: 5, color: 0xd29922, height: 1.8 },
+      { id: 'second_floor', name: '2-Story Tower', cost: 20, income: 8, color: 0x8957e5, height: 3.6 },
+      { id: 'lab', name: 'Research Lab', cost: 35, income: 15, color: 0x39c5cf, height: 2.2 },
+      { id: 'hydro', name: 'Hydroponics Bay', cost: 50, income: 22, color: 0x3fb950, height: 2.0 },
+      { id: 'observatory', name: 'Cupola Dome', cost: 80, income: 38, color: 0xa371f7, height: 2.5 },
+      { id: 'command', name: 'Command Center', cost: 120, income: 60, color: 0xf85149, height: 3.8 }
     ];
 
     // Scene Setup
     const container = document.getElementById('webgl-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050811);
-    scene.fog = new THREE.FogExp2(0x050811, 0.02);
+    scene.fog = new THREE.FogExp2(0x050811, 0.015);
 
     const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -196,9 +195,10 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-    const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    sunLight.position.set(20, 40, 20);
+    // Realistic Space Lighting
+    scene.add(new THREE.AmbientLight(0xd1e8ff, 0.6));
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+    sunLight.position.set(30, 50, 20);
     scene.add(sunLight);
 
     // Player Group
@@ -206,7 +206,9 @@
     playerGroup.add(camera);
     scene.add(playerGroup);
 
-    // Grid Platform Meshes
+    let targetPlayerY = 1.6; // For camera smooth lerp
+
+    // Grid Platforms
     const platformMeshes = [];
     for (let x = 0; x < GRID_SIZE; x++) {
       for (let z = 0; z < GRID_SIZE; z++) {
@@ -219,23 +221,122 @@
         platform.position.set(posX, -0.1, posZ);
         platform.userData = { gridX: x, gridZ: z };
 
+        // Grid Outline
+        const edges = new THREE.EdgesGeometry(geo);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x30363d }));
+        platform.add(line);
+
         scene.add(platform);
         platformMeshes.push(platform);
       }
     }
 
-    // Starter Block at Center (2, 2)
-    const START_GX = 2;
-    const START_GZ = 2;
+    // Builder function for realistic detailed rooms
+    function createDetailedModule(moduleData) {
+      const group = new THREE.Group();
+      const metalMat = new THREE.MeshStandardMaterial({ color: 0xc0c8d0, metalness: 0.8, roughness: 0.3 });
+      const darkMetalMat = new THREE.MeshStandardMaterial({ color: 0x21262d, metalness: 0.7, roughness: 0.4 });
+      const glassMat = new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.5, roughness: 0.1 });
+      const glowMat = new THREE.MeshBasicMaterial({ color: moduleData.color });
+
+      // Core Box Frame
+      const baseGeo = new THREE.BoxGeometry(TILE_SIZE - 0.4, moduleData.height, TILE_SIZE - 0.4);
+      const baseMesh = new THREE.Mesh(baseGeo, metalMat);
+      baseMesh.position.y = moduleData.height / 2;
+      group.add(baseMesh);
+
+      // Unique Architectural Details
+      if (moduleData.id === 'farm' || moduleData.id === 'hydro') {
+        // Glass Greenhouse Roof
+        const domeGeo = new THREE.SphereGeometry(1.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+        const dome = new THREE.Mesh(domeGeo, glassMat);
+        dome.position.y = moduleData.height;
+        group.add(dome);
+
+        // Green Internal LED
+        const light = new THREE.PointLight(0x3fb950, 1, 4);
+        light.position.y = moduleData.height / 2;
+        group.add(light);
+      } else if (moduleData.id === 'bedroom') {
+        // Pressure Cylinder Body
+        const cylGeo = new THREE.CylinderGeometry(1.2, 1.2, 3.2, 16);
+        const cyl = new THREE.Mesh(cylGeo, metalMat);
+        cyl.rotation.z = Math.PI / 2;
+        cyl.position.y = moduleData.height / 2;
+        group.add(cyl);
+
+        // Porthole Windows
+        const portGeo = new THREE.CylinderGeometry(0.3, 0.3, 3.3, 12);
+        const port = new THREE.Mesh(portGeo, glassMat);
+        port.rotation.z = Math.PI / 2;
+        port.position.y = moduleData.height / 2;
+        group.add(port);
+      } else if (moduleData.id === 'solar') {
+        // Extended Solar Panel Wings
+        const wingGeo = new THREE.BoxGeometry(4.2, 0.05, 1.2);
+        const solarMat = new THREE.MeshStandardMaterial({ color: 0x0033aa, roughness: 0.2, metalness: 0.9 });
+        const wings = new THREE.Mesh(wingGeo, solarMat);
+        wings.position.y = moduleData.height + 0.2;
+        group.add(wings);
+      } else if (moduleData.id === 'lab') {
+        // Glowing Containment Ring
+        const ringGeo = new THREE.TorusGeometry(1.4, 0.1, 8, 24);
+        const ring = new THREE.Mesh(ringGeo, glowMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = moduleData.height / 2;
+        group.add(ring);
+      } else if (moduleData.id === 'observatory') {
+        // Glass Cupola Observation Deck
+        const cupolaGeo = new THREE.SphereGeometry(1.2, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2.5);
+        const cupola = new THREE.Mesh(cupolaGeo, glassMat);
+        cupola.position.y = moduleData.height;
+        group.add(cupola);
+      } else if (moduleData.id === 'command') {
+        // Antenna & Satellite Dish
+        const dishGeo = new THREE.ConeGeometry(0.8, 0.4, 16);
+        const dish = new THREE.Mesh(dishGeo, darkMetalMat);
+        dish.position.set(0, moduleData.height + 0.5, 0);
+        dish.rotation.x = -Math.PI / 4;
+        group.add(dish);
+
+        const beacon = new THREE.PointLight(0xff0000, 1.5, 5);
+        beacon.position.set(0, moduleData.height + 0.8, 0);
+        group.add(beacon);
+      }
+
+      // Corner Pillar Frames
+      const pillarGeo = new THREE.BoxGeometry(0.2, moduleData.height, 0.2);
+      const corners = [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]];
+      corners.forEach(([cx, cz]) => {
+        const pillar = new THREE.Mesh(pillarGeo, darkMetalMat);
+        pillar.position.set(cx, moduleData.height / 2, cz);
+        group.add(pillar);
+      });
+
+      return group;
+    }
+
+    function buildModule(gx, gz, moduleData) {
+      const posX = gx * TILE_SIZE - offset;
+      const posZ = gz * TILE_SIZE - offset;
+
+      const group = createDetailedModule(moduleData);
+      group.position.set(posX, 0, posZ);
+      scene.add(group);
+      mapGrid[gx][gz] = moduleData;
+    }
+
+    // Starter Central Module at (2, 2)
+    const START_GX = 2, START_GZ = 2;
     buildModule(START_GX, START_GZ, catalog[0]);
 
-    // Spawn player standing safely on starter block
     const startX = START_GX * TILE_SIZE - offset;
     const startZ = START_GZ * TILE_SIZE - offset;
     playerGroup.position.set(startX, catalog[0].height, startZ);
-    camera.position.set(0, 1.4, 0); // Eye level
+    targetPlayerY = catalog[0].height;
+    camera.position.set(0, 1.4, 0); // Eye height
 
-    // Build Preview "Ghost" Box
+    // Ghost Preview Placement Box
     const ghostGeo = new THREE.BoxGeometry(TILE_SIZE - 0.4, 1, TILE_SIZE - 0.4);
     const ghostMat = new THREE.MeshBasicMaterial({ color: 0x3fb950, wireframe: true, transparent: true, opacity: 0.6 });
     const ghostBox = new THREE.Mesh(ghostGeo, ghostMat);
@@ -278,10 +379,10 @@
     window.addEventListener('pointermove', handleJoyMove);
     window.addEventListener('pointerup', handleJoyEnd);
 
-    // Look Dragging Controls (Look Around / Look Down)
+    // Smooth First-Person Look Controls
     let isLooking = false;
     let lastMousePos = { x: 0, y: 0 };
-    let pitch = 0; // Vertical camera angle
+    let pitch = 0;
 
     window.addEventListener('pointerdown', (e) => {
       if (e.target === renderer.domElement) {
@@ -298,13 +399,13 @@
 
       playerGroup.rotation.y -= dx * 0.005;
       pitch -= dy * 0.005;
-      pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch)); // Clamp look angle
+      pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
       camera.rotation.x = pitch;
     });
 
     window.addEventListener('pointerup', () => { isLooking = false; });
 
-    // UI Catalog Panel
+    // UI Catalog
     function renderCatalog() {
       const catalogEl = document.getElementById('catalog-container');
       catalogEl.innerHTML = '';
@@ -315,22 +416,6 @@
         div.innerHTML = `<h3>${item.name}</h3><p>Cost: <b>${item.cost}</b> | +<b>${item.income}</b>/s</p>`;
         catalogEl.appendChild(div);
       });
-    }
-
-    function buildModule(gx, gz, moduleData) {
-      const posX = gx * TILE_SIZE - offset;
-      const posZ = gz * TILE_SIZE - offset;
-
-      const group = new THREE.Group();
-      const mat = new THREE.MeshStandardMaterial({ color: moduleData.color, roughness: 0.3 });
-      const geo = new THREE.BoxGeometry(TILE_SIZE - 0.4, moduleData.height, TILE_SIZE - 0.4);
-      const mainBlock = new THREE.Mesh(geo, mat);
-      mainBlock.position.y = moduleData.height / 2;
-      group.add(mainBlock);
-
-      group.position.set(posX, 0, posZ);
-      scene.add(group);
-      mapGrid[gx][gz] = moduleData;
     }
 
     // Aim Raycaster & Building
@@ -372,12 +457,11 @@
       }
     };
 
-    // Player Movement (Restricted to Standing on Modules)
+    // Smooth Movement Logic (No Height Glitch)
     function updatePlayerMovement() {
       if (joystickVector.x !== 0 || joystickVector.y !== 0) {
-        const moveSpeed = 0.1;
+        const moveSpeed = 0.08;
         
-        // Direction vectors relative to facing angle
         const forwardX = -Math.sin(playerGroup.rotation.y);
         const forwardZ = -Math.cos(playerGroup.rotation.y);
         const rightX = Math.cos(playerGroup.rotation.y);
@@ -386,7 +470,6 @@
         const nextX = playerGroup.position.x + (forwardX * (-joystickVector.y) + rightX * joystickVector.x) * moveSpeed;
         const nextZ = playerGroup.position.z + (forwardZ * (-joystickVector.y) + rightZ * joystickVector.x) * moveSpeed;
 
-        // Grid Tile Index check
         const targetGx = Math.round((nextX + offset) / TILE_SIZE);
         const targetGz = Math.round((nextZ + offset) / TILE_SIZE);
 
@@ -395,10 +478,13 @@
           if (block !== null) {
             playerGroup.position.x = nextX;
             playerGroup.position.z = nextZ;
-            playerGroup.position.y = block.height; // Snap height to block surface
+            targetPlayerY = block.height; // Set target height for smooth transition
           }
         }
       }
+
+      // Smooth Height Lerp (Fixes camera pop/glitch when moving between different height rooms)
+      playerGroup.position.y += (targetPlayerY - playerGroup.position.y) * 0.15;
     }
 
     function getPassiveIncome() {
