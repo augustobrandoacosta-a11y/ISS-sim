@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ISS Station Builder</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 {
+      text-align: center;
+      color: #58a6ff;
+      margin-bottom: 20px;
+    }
+    .dashboard {
+      background: #161b22;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-around;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .stat-val {
+      color: #3fb950;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    .card {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .card h3 {
+      margin: 0 0 10px 0;
+      color: #79c0ff;
+    }
+    .card p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+    }
+    .btn {
+      background-color: #238636;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+
+    }
+    .btn:disabled {
+      background-color: #343942;
+      cursor: not-allowed;
+      color: #8b949e;
+    }
+    .btn:hover:not(:disabled) {
+      background-color: #2ea043;
+    }
+    .inventory {
+      margin-top: 25px;
+      background: #161b22;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+    }
+    .inventory h2 {
+      margin-top: 0;
+      color: #f0883e;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🚀 International Space Station Builder</h1>
+    
+    <div class="dashboard">
+      <div>💰 Orbitals: <span id="orbitals" class="stat-val">0</span></div>
+      <div>⚡ Income: +<span id="income" class="stat-val">0</span> / sec</div>
+    </div>
+
+    <div class="grid" id="shop"></div>
+
+    <div class="inventory">
+      <h2>🛸 Active Station Modules</h2>
+      <p id="built-list">No modules built yet.</p>
+    </div>
+  </div>
+
+  <script>
+    let orbitals = 0;
+    
+    const catalog = [
+      { name: 'Farm', cost: 0, income: 1, count: 0 },
+      { name: 'Bedroom', cost: 10, income: 3, count: 0 },
+      { name: 'Solar Panel Room', cost: 15, income: 5, count: 0 },
+      { name: 'Second Floor', cost: 20, income: 8, count: 0 },
+      { name: 'Research Lab', cost: 35, income: 15, count: 0 },
+      { name: 'Hydroponics Bay', cost: 50, income: 22, count: 0 },
+      { name: 'Observatory Deck', cost: 80, income: 38, count: 0 },
+      { name: 'Command Center', cost: 120, income: 60, count: 0 }
+    ];
+
+    function renderShop() {
+      const shop = document.getElementById('shop');
+      shop.innerHTML = '';
+      
+      catalog.forEach((room, index) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div>
+            <h3>${room.name}</h3>
+            <p>Cost: <strong>${room.cost}</strong> Orbitals</p>
+            <p>Income: <strong>+${room.income}</strong>/sec</p>
+            <p>Owned: <strong>${room.count}</strong></p>
+          </div>
+          <button class="btn" id="btn-${index}" onclick="buyRoom(${index})">Build Module</button>
+        `;
+        shop.appendChild(card);
+      });
+      updateButtons();
+    }
+
+    function buyRoom(index) {
+      const room = catalog[index];
+      if (orbitals >= room.cost) {
+        orbitals -= room.cost;
+        room.count++;
+        updateUI();
+      }
+    }
+
+    function updateButtons() {
+      catalog.forEach((room, index) => {
+        const btn = document.getElementById(`btn-${index}`);
+        if (btn) btn.disabled = orbitals < room.cost;
+      });
+    }
+
+    function getPassiveIncome() {
+      return catalog.reduce((total, room) => total + (room.count * room.income), 0);
+    }
+
+    function updateUI() {
+      document.getElementById('orbitals').innerText = orbitals;
+      document.getElementById('income').innerText = getPassiveIncome();
+      
+      const built = catalog
+        .filter(r => r.count > 0)
+        .map(r => `${r.name} (x${r.count})`)
+        .join(' • ');
+      
+      document.getElementById('built-list').innerText = built || 'No modules built yet.';
+      updateButtons();
+    }
+
+    // Passive income timer (ticks every second)
+    setInterval(() => {
+      orbitals += getPassiveIncome();
+      updateUI();
+    }, 1000);
+
+    renderShop();
+    updateUI();
+  </script>
+</body>
+</html>
